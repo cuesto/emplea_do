@@ -12,8 +12,8 @@ namespace Web.ViewModels
 
         [Display(Name = "Localidad")]
         public string LocationName { get; set; }
-        public double LocationLatitude { get; set; }
-        public double LocationLongitude { get; set; }
+        public string LocationLatitude { get; set; }
+        public string LocationLongitude { get; set; }
         [Required(ErrorMessage = "Debes seleccionar una localidad válida")]
         public string LocationPlaceId { get; set; }
 
@@ -50,7 +50,7 @@ namespace Web.ViewModels
 
 
         [StringLength(int.MaxValue), Url(ErrorMessage = "El logo de la compañía debe ser un Url válido.")]
-        [Display(Name = "Logo de la empresa(opcional)")]
+        [Display(Name = "Logo de la empresa (.jpg, .png) (opcional)")]
         public string CompanyLogoUrl { get; set; }
 
         [Display(Name = "¿Es un puesto remoto?")]

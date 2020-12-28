@@ -1,32 +1,22 @@
 ﻿@using Microsoft.Extensions.Configuration
 @inject IConfiguration Configuration
-@using Web.Framework.Helpers
 @model Web.ViewModels.WizardViewModel
-@*if (!ViewBag.IsEdit)
-    {
-        ViewBag.Title = "Nuevo Empleo";
-    }
-    else
-    {
-        ViewBag.Title = "Editar Empleo";
 
-    }
-*@
 
 <section class="wizard-container">
     <div class="container">
         @using (Html.BeginForm("Wizard", "Jobs", FormMethod.Post, new { role = "form" }))
         {
             @Html.AntiForgeryToken()
-            
+
             <input type="hidden" asp-for="Id" />
             <div class="form-check">
-                        
-                <input class="form-check-input" style="margin-left:0" type="radio" asp-for="CreateNewCompany" value="true" /><label class="form-check-label control-label">Crear nueva compañía</label>
-                       
+
+                <input class="form-check-input i-checks" style="margin-left:0" type="radio" asp-for="CreateNewCompany" value="true" /><label class="form-check-label control-label">Crear nueva compañía</label>
+
             </div>
             <div class="form-check">
-                <input class="form-check-input" style="margin-left:0" type="radio" asp-for="CreateNewCompany" value="false" /><label class="form-check-label control-label">Usar compañía existente</label>
+                <input class="form-check-input i-checks" style="margin-left:0" type="radio" asp-for="CreateNewCompany" value="false" /><label class="form-check-label control-label">Usar compañía existente</label>
 
             </div>
             <div id="newCompanyDetails">
@@ -53,8 +43,7 @@
                     <span>
                         <b>Tip:</b> Muchos aplicantes visitar&aacute;n tu sitio web y lo tomar&aacute;n
                         como referencia antes de decidirse por t&iacute;. Si tu empresa no tiene un sitio web
-                        o crees que necesita unas mejoras, considera buscar un web developer en
-                        <a href="@Url.Action("Index", "Home" )">emplea.do</a>
+                        o crees que necesita unas mejoras, considera buscar un web developer aquí mismo.
                     </span>
                     <br />
                     <span class="text-danger">
@@ -65,14 +54,15 @@
                     <label class="control-label" asp-for="CompanyLogoUrl"></label>
                     <input asp-for="CompanyLogoUrl" class="form-control" type="url" placeholder="https://companyx.com/logo.png" />
                     <span>
-                        Asegurate de que el servidor donde est&eacute; alojado el logo acepte hotlinks.
-                        Si no sabes que es eso, no te preocupes, sube el logo a <a href="https://imgur.com" target="_blank">imgur</a> y pega la url aqu&iacute;
+                        <b>Tip:</b> Asegurate de que el servidor donde est&eacute; alojado el logo acepte hotlinks.
+                        Si no sabes que es eso, no te preocupes, sube el logo a <b><a href="https://imgur.com" target="_blank">imgur</a></b> y pega la url aqu&iacute;
                     </span>
                     <br />
                     <span class="text-danger">
                         @Html.ValidationMessageFor(m => m.CompanyLogoUrl)
                     </span>
                 </div>
+                <span>Al agregar una compañía aceptas que tienes permiso de parte de la compañía para publicar posiciones en su nombre</span>
             </div>
             <div id="selectCompany">
                 <div class="form-group">
@@ -81,6 +71,7 @@
                     <span class="text-danger">@Html.ValidationMessageFor(m => m.CompanyId)</span>
                 </div>
             </div>
+            <hr />
             <div class="form-group">
                 <label class="control-label" asp-for="Title"></label>
                 <input asp-for="Title" class="form-control" placeholder="ejemp. Se busca Web Designer" />
@@ -98,12 +89,6 @@
                 <span class="text-danger">@Html.ValidationMessageFor(m => m.JobTypeId)</span>
             </div>
             <div class="form-group">
-                <label class="control-label" asp-for="HowToApply"></label>
-                <textarea asp-for="HowToApply" class="form-control summernote" placeholder="Agrega los pasos que un candidato debe realizar para aplicar a el puesto, no hay que proporcionar el correo en este campo."></textarea>
-
-                <span class="text-danger">@Html.ValidationMessageFor(m => m.HowToApply)</span>
-            </div>
-            <div class="form-group">
                 <label class="control-label" asp-for="LocationName"></label>
                 <input asp-for="LocationName" class="form-control" placeholder="Selecciona una localidad" autocomplete="off" />
                 <input type="hidden" asp-for="LocationLatitude" />
@@ -118,23 +103,42 @@
             </div>
             <div class="form-group">
                 <label class="control-label" asp-for="Description"></label>
-                <textarea asp-for="Description" class="form-control summernote"></textarea>
+                <div id="Description-editor"  class="form-control" placeholder="Escribe los requerimientos de tu candidato ideal.">@Model.Description</div>
+                <input type="hidden" asp-for="Description" />
                 <span class="text-danger">@Html.ValidationMessageFor(m => m.Description)</span>
                 <span>
                     <b>Tip:</b> Se lo más explícito posible, si eres de recursos humanos consulta con una persona de
                     tecnología sobre cuales son los requerimientos técnicos.
                 </span>
             </div>
+            <div class="form-group">
+                <label class="control-label" asp-for="HowToApply"></label>
+                <div id="HowToApply-editor" name="HowToApply" class="form-control" placeholder="Agrega los pasos que un candidato debe realizar para aplicar a el puesto, no hay que proporcionar el correo en este campo.">@Model.HowToApply</div>
+                <input type="hidden" asp-for="HowToApply" />
+                <span class="text-danger">@Html.ValidationMessageFor(m => m.HowToApply)</span>
+            </div>
             <button type="submit" class="btn btn-primary btn-lg">Guardar información</button>
         }
     </div>
 </section>
 
+@section Styles {
+    <style type="text/css">
+        .ql-container {
+            font-size: 16px;
+            font-family: 'Muli', sans-serif;
+            max-height: 450px;
+            min-height: 300px;
+        }
+    </style>
+
+}
+
 
 @section Scripts{
     <script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=@(Configuration["GoogleMapsApiKey"])&libraries=places"></script>
     <script type="text/javascript">
-        google.maps.event.addDomListener(window, 'load', function () {
+google.maps.event.addDomListener(window, 'load', function () {
             var places = new google.maps.places.Autocomplete(document.getElementById('LocationName'));
             google.maps.event.addListener(places, 'place_changed', function () {
                 var place = places.getPlace();
@@ -157,16 +161,13 @@
 
         var toggleCompanySelect = function () {
 
-            if ($("#CreateNewCompany[value=true]")[0].checked)
-            {
-                console.log("Create new company");
+            if ($("#CreateNewCompany[value=true]")[0].checked) {
                 $("#newCompanyDetails").show();
                 $("#selectCompany").hide();
                 $("#CompanyName").attr("required", "required");
                 $("#CompanyEmail").attr("required", "required");
             }
             else {
-                console.log("Use existing company");
                 $("#newCompanyDetails").hide();
                 $("#selectCompany").show();
                 $("#CompanyName").removeAttr("required");
@@ -177,11 +178,36 @@
 
         $(document).ready(function () {
             toggleCompanySelect();
-            $(".form-check-input").change(function () {
-                console.log("Here");
+            $(".form-check-input").on("ifChanged", function () {
                 toggleCompanySelect();
             });
-        });
-    </script>
+
+            var descriptionBox = new Quill('#Description-editor', {
+                modules: {
+                    toolbar: [
+                        ['bold', 'italic', 'underline'],
+                    ]
+                },
+                placeholder: '',
+                theme: 'snow'
+            });
+
+            descriptionBox.on('text-change', function (delta) {
+                $("#Description").val(descriptionBox.getText(0));
+            });
+            var applyBox = new Quill('#HowToApply-editor', {
+                modules: {
+                    toolbar: [
+                        ['bold', 'italic', 'underline'],
+                    ]
+                },
+                placeholder: '',
+                theme: 'snow'  // or 'bubble'
+            });
+
+            applyBox.on('text-change', function (delta) {
+                $("#HowToApply").val(applyBox.getText(0));
+            });
+        });</script>
 
 }

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using AppServices.Framework;
 using AppServices.Services;
-using Data.Repositories;
+using AppServices.Data.Repositories;
 using Domain.Entities;
 
 namespace AppServices.Services
@@ -17,6 +17,11 @@ namespace AppServices.Services
         public List<Company> GetByUserId(int userId)
         {
             return _mainRepository.Get(x=>x.IsActive && x.UserId == userId).ToList();
+        }
+
+         public Company GetById(int id)
+        {
+            return _mainRepository.Get(x=>x.IsActive && x.Id == id).FirstOrDefault();
         }
 
         protected override TaskResult<Company> ValidateOnCreate(Company entity)
@@ -38,5 +43,6 @@ namespace AppServices.Services
     public interface ICompaniesService : IBaseService<Company, ICompaniesRepository>
     {
         List<Company> GetByUserId(int userId);
+         Company GetById(int id);
     }
 }

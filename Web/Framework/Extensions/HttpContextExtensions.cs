@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
@@ -34,5 +36,20 @@ namespace Web.Framework.Extensions
                     where string.Equals(scheme.Name, provider, StringComparison.OrdinalIgnoreCase)
                     select scheme).Any();
         }
+        /*
+        public static string GetRawBodyString(this HttpContext httpContext, Encoding encoding)
+        {
+            var body = "";
+            if (httpContext.Request.ContentLength == null || !(httpContext.Request.ContentLength > 0) ||
+                !httpContext.Request.Body.CanSeek) return body;
+            httpContext.Request.EnableRewind();
+            httpContext.Request.Body.Seek(0, SeekOrigin.Begin);
+            using (var reader = new StreamReader(httpContext.Request.Body, encoding))
+            {
+                body = reader.ReadToEnd();
+            }
+            httpContext.Request.Body.Position = 0;
+            return body;
+        }*/
     }
 }

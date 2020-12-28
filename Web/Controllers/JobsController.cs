@@ -18,6 +18,9 @@ using Web.Models.Slack;
 using System.Net;
 using System.IO;
 using System.Text;
+using Web.Framework;
+using ElmahCore;
+using Web.Framework.Extensions;
 
 namespace Web.Controllers
 {
@@ -32,7 +35,9 @@ namespace Web.Controllers
         private readonly ICompaniesService _companiesService;
         private readonly ISlackService _slackService;
 
-        public JobsController(IJobsService jobsService, ICategoriesService categoriesService, IHireTypesService hiretypesService, ITwitterService twitterService, LegacyApiClient apiClient, IConfiguration configuration, ICompaniesService companiesService, ISlackService slackService)
+        public JobsController(IJobsService jobsService, ICategoriesService categoriesService, IHireTypesService hiretypesService,
+            ITwitterService twitterService, LegacyApiClient apiClient, IConfiguration configuration,
+            ICompaniesService companiesService, ISlackService slackService)
         {
             _jobsService = jobsService;
             _categoriesService = categoriesService;
@@ -44,58 +49,18 @@ namespace Web.Controllers
             _slackService = slackService;
         }
 
-        public async Task<IActionResult> Index(JobSeachViewModel model)
+        public IActionResult Index(JobSeachViewModel model)
         {
-
-            /*
-             var recentJobs = _jobsService.GetRecentJobs();
-
-            var legacyJobs = await _apiClient.GetJobsFromLegacy();
-
-            if(legacyJobs != null)
-            {
-                List<Job> legacyJobsTemp = new List<Job>();
-
-                foreach (var legacyJob in legacyJobs)
-                {
-                    legacyJobsTemp.Add(new Job()
-                    {
-                        Company = new Company()
-                        {
-                            Name = legacyJob.CompanyName,
-                            LogoUrl = legacyJob.CompanyLogoUrl,
-                            Url = legacyJob.Link,
-                            Email = legacyJob.Email
-                        },
-                        Title = legacyJob.Title,
-                        PublishedDate = legacyJob.PublishedDate,
-                        Description = legacyJob.Description,
-                        HowToApply = legacyJob.HowToApply,
-                        IsRemote = legacyJob.IsRemote,
-                        ViewCount = legacyJob.ViewCount,
-                        Likes = legacyJob.Likes,
-                        Location = new Location
-                        {
-                            Name = legacyJob.Location
-                        },
-                        HireType = new HireType
-                        {
-                            Description = legacyJob.JobType
-                        }
-                    });
-                }
-
-                recentJobs = recentJobs.Concat(legacyJobsTemp).ToList();
-            }
-            */
-
             if (model == null)
             {
                 model = new JobSeachViewModel();
             }
 
-            var jobs = _jobsService.Search(model.Keyword, model.CategoryId, model.HireTypeId, model.IsRemote);
+            bool? isOnlyRemotes = null;
+            if (model.IsRemote)
+                isOnlyRemotes = model.IsRemote;
 
+            var jobs = _jobsService.Search(model.Keyword, model.CategoryId, model.HireTypeId, isOnlyRemotes);
 
             model.Jobs = jobs;
 
@@ -112,13 +77,13 @@ namespace Web.Controllers
             {
                 Categories = _categoriesService.GetAll(),
                 JobTypes = _hiretypesService.GetAll(),
-                Companies  = _companiesService.GetByUserId(_currentUser.UserId)
+                Companies = _companiesService.GetByUserId(_currentUser.UserId)
             };
 
             if (id.HasValue)
             {
                 var originalJob = _jobsService.GetById(id.Value);
-                if(originalJob.UserId == _currentUser.UserId)
+                if (originalJob.UserId == _currentUser.UserId)
                 {
                     model.Id = originalJob.Id;
                     model.CompanyId = originalJob.Company.Id;
@@ -135,7 +100,7 @@ namespace Web.Controllers
                     model.LocationLongitude = originalJob.Location.Longitude;
                 }
                 else
-                { 
+                {
                     return RedirectToAction("Index", "Home").WithError("No tienes permiso para editar esta posición");
                 }
             }
@@ -158,6 +123,7 @@ namespace Web.Controllers
                     var companyId = model.CompanyId;
                     if (model.CreateNewCompany)
                     {
+
                         var company = new Company
                         {
                             Name = model.CompanyName,
@@ -167,6 +133,14 @@ namespace Web.Controllers
                             Email = model.CompanyEmail
                         };
 
+                        if (string.IsNullOrWhiteSpace(company.LogoUrl) ||
+                            !company.LogoUrl.StartsWith("https") ||
+                            (!company.LogoUrl.EndsWith(".jpg") &&
+                             !company.LogoUrl.EndsWith(".jpeg") &&
+                             !company.LogoUrl.EndsWith(".png")))
+                        {
+                            company.LogoUrl = $"{this.Request.Scheme}://{this.Request.Host}{Constants.DefaultLogoUrl}";
+                        }
                         _companiesService.Create(company);
                         companyId = company.Id;
                     }
@@ -174,7 +148,7 @@ namespace Web.Controllers
                     if (model.Id.HasValue)
                     {
                         var originalJob = _jobsService.GetById(model.Id.Value);
-                        if(originalJob.UserId == _currentUser.UserId)
+                        if (originalJob.UserId == _currentUser.UserId)
                         {
 
                             originalJob.CategoryId = model.CategoryId;
@@ -184,8 +158,9 @@ namespace Web.Controllers
                             originalJob.Description = model.Description;
                             originalJob.Title = model.Title;
                             originalJob.IsRemote = model.IsRemote;
-                            if(originalJob.Location.PlaceId != model.LocationPlaceId)
-                            { 
+                            originalJob.IsApproved = false;
+                            if (originalJob.Location.PlaceId != model.LocationPlaceId)
+                            {
                                 originalJob.Location = new Location
                                 {
                                     PlaceId = model.LocationPlaceId,
@@ -197,7 +172,14 @@ namespace Web.Controllers
                             var result = _jobsService.Update(originalJob);
                             if (result.Success)
                             {
-                                await _slackService.PostJob(originalJob, Url);
+                                try
+                                {
+                                    await _slackService.PostJob(originalJob, Url);
+                                }
+                                catch (Exception ex)
+                                {
+                                    HttpContext.RiseError(ex);
+                                }
                                 return RedirectToAction("Wizard", new { Id = model.Id.Value }).WithSuccess("Posición editada exitosamente");
                             }
 
@@ -228,22 +210,31 @@ namespace Web.Controllers
                             },
                             UserId = _currentUser.UserId,
                             IsHidden = false,
-                            IsApproved = false
+                            IsApproved = false,
+                            PublishedDate = DateTime.Now
                         };
                         var result = _jobsService.Create(newJob);
                         if (result.Success)
                         {
-                            await _slackService.PostJob(newJob, Url).ConfigureAwait(false);
+                            try
+                            {
+                                await _slackService.PostJob(newJob, Url).ConfigureAwait(false);
+                            }
+                            catch (Exception ex)
+                            {
+                                HttpContext.RiseError(ex);
+                            }
 
                             return RedirectToAction("Details", new { newJob.Id, isPreview = true }).WithInfo(result.Messages);
                         }
 
-                        return View(model).WithError(result.Messages);
+                        throw new Exception(result.Messages);
                     }
 
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
+                    HttpContext.RiseError(ex);
                     return View(model).WithError(ex.Message);
                 }
             }
@@ -260,7 +251,8 @@ namespace Web.Controllers
             if (isLegacy)
             {
                 var legacyJob = await _apiClient.GetJobById(Id);
-                if(legacyJob != null) { 
+                if (legacyJob != null)
+                {
                     job = new Job()
                     {
                         Company = new Company()
@@ -290,24 +282,40 @@ namespace Web.Controllers
             }
             else
             {
-               job = this._jobsService.GetDetails(jobId, isPreview);
+                job = this._jobsService.GetDetails(jobId, isPreview);
             }
 
-            //Manage error message
             if (job == null)
                 return RedirectToAction(nameof(this.Index)).WithError("El puesto que buscas no existe.");
 
-            //If reach this line is because the job exists
+            ViewBag.Title = job.Title;
+            ViewBag.Description = job.Description;
             var viewModel = new JobDetailsViewModel
-            {   
+            {
                 Job = job,
-                IsJobOwner = (job.UserId == _currentUser.UserId)
+                IsJobOwner = _currentUser.IsAuthenticated && job.UserId == _currentUser.UserId
             };
 
-            if(!isLegacy)
-            { 
-                job.ViewCount++;
-                _jobsService.Update(job);
+            if (!isLegacy)
+            {
+                //Get the list of jobs visited in the cookie
+                //Format: comma separated jobs Id
+                //Naming: appname_meanfulname
+                var visitedJobs = Request.Cookies["empleado_visitedjobs"];
+
+                //If cookie value is null (not set) use empty string to avoid NullReferenceException
+                var visitedJobsList = (visitedJobs ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+                //If jobs has not be visited update ViewCount & add job Id to cookie
+                if (!visitedJobsList.Contains(Id))
+                {
+                    job.ViewCount++;
+                    _jobsService.Update(job);
+
+                    visitedJobs = string.Join(",", visitedJobsList.Append(Id));
+                }
+
+                Response.Cookies.Append("empleado_visitedjobs", visitedJobs);
             }
 
             if (isPreview)
@@ -349,12 +357,13 @@ namespace Web.Controllers
                 }
             }
             catch (Exception ex)
-                        {
+            {
+                HttpContext.RiseError(ex);
                 result.AddErrorMessage(ex.Message);
             }
             return Json(result);
         }
-        
+
         [Authorize]
         [HttpPost]
         public JsonResult Delete(int id)
@@ -364,18 +373,18 @@ namespace Web.Controllers
             {
                 var job = _jobsService.GetById(id);
 
-                if(job == null)
+                if (job == null)
                 {
                     result.AddErrorMessage("No puedes eliminar un puesto que no existe.");
                 }
-                else if(job.UserId == _currentUser.UserId)
+                else if (job.UserId == _currentUser.UserId)
                 {
                     if (!job.IsActive)
                     {
                         result.AddErrorMessage("El puesto que intentas eliminar ya está eliminado.");
                     }
                     else
-                    { 
+                    {
                         result = _jobsService.Delete(job);
                     }
                 }
@@ -384,8 +393,9 @@ namespace Web.Controllers
                     result.AddErrorMessage("No puedes eliminar un puesto que no creaste.");
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
+                HttpContext.RiseError(ex);
                 result.AddErrorMessage(ex.Message);
             }
             return Json(result);
@@ -395,43 +405,56 @@ namespace Web.Controllers
         /// <summary>
         /// Validates the payload response that comes from the Slack interactive message actions
         /// </summary>
-        /// <param name="model"></param>
+        /// <param name="payload"></param>
         /// <returns></returns>s
         [HttpPost]
-        //[ValidateInput(false)]
-        public async Task Validate()
+        [AllowAnonymous]
+        public async Task Validate([FromForm] string payload)
         {
-            var bodyStr = "";
-            using (StreamReader reader = new StreamReader(Request.Body, Encoding.UTF8))
-            {
-                bodyStr = await reader.ReadToEndAsync();
-            }
-
-            var payload = JsonConvert.DeserializeObject<PayloadResponseDto>(bodyStr);
-            int jobOpportunityId = Convert.ToInt32(payload.callback_id);
-            var jobOpportunity = _jobsService.GetById(jobOpportunityId);
-            var isJobApproved = payload.actions.FirstOrDefault()?.value == "approve";
-            var isJobRejected = payload.actions.FirstOrDefault()?.value == "reject";
-            var isTokenValid = payload.token == _configuration["Slack:VerificationToken"];
-
             try
             {
+                var data = JsonConvert.DeserializeObject<PayloadResponseDto>(payload);
+
+                if (data == null)
+                {
+                    throw new Exception($"Payload is null, Body: {payload}");
+                }
+
+                int jobOpportunityId = Convert.ToInt32(data.callback_id);
+                var jobOpportunity = _jobsService.GetById(jobOpportunityId);
+                var isJobApproved = data.actions.FirstOrDefault()?.value == "approve";
+                var isJobRejected = data.actions.FirstOrDefault()?.value == "reject";
+                var isTokenValid = data.token == _configuration["Slack:VerificationToken"];
+
                 if (isTokenValid && isJobApproved)
                 {
                     jobOpportunity.IsApproved = true;
+                    jobOpportunity.PublishedDate = DateTime.UtcNow;
                     _jobsService.Update(jobOpportunity);
-                    await _slackService.PostJobResponse(jobOpportunity, Url, payload.response_url, payload?.user?.id, true);
+                    await _slackService.PostJobResponse(jobOpportunity, Url, data.response_url, data?.user?.id, true);
+
+                    try
+                    {
+                        var tweetText = jobOpportunity.Title + " " + Url.AbsoluteUrl("Details", "Jobs", new { Id = jobOpportunityId });
+                        await _twitterService.Tweet(tweetText);
+                    }
+                    catch (Exception tweetException)
+                    {
+                        HttpContext.RiseError(tweetException);
+                        if (tweetException.InnerException != null)
+                            HttpContext.RiseError(tweetException.InnerException);
+                    }
                 }
                 else if (isTokenValid && isJobRejected)
                 {
                     // Jobs are rejected by default, so there's no need to update the DB
                     if (jobOpportunity == null)
                     {
-                        await _slackService.PostJobErrorResponse(jobOpportunity, Url, payload.response_url);
+                        await _slackService.PostJobErrorResponse(jobOpportunity, Url, data.response_url);
                     }
                     else
                     {
-                        await _slackService.PostJobResponse(jobOpportunity, Url, payload.response_url, payload?.user?.id, false);
+                        await _slackService.PostJobResponse(jobOpportunity, Url, data.response_url, data?.user?.id, false);
                     }
                 }
                 else
@@ -441,10 +464,10 @@ namespace Web.Controllers
             }
             catch (Exception ex)
             {
-                //Catches exceptions so that the raw HTML doesn't appear on the slack channel
-              //  await _slackService.PostJobOpportunityErrorResponse(jobOpportunity, Url, payload.response_url);
+                HttpContext.RiseError(ex);
+                if (ex.InnerException != null)
+                    HttpContext.RiseError(ex.InnerException);
             }
         }
-
     }
 }

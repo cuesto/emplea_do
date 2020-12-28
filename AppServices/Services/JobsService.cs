@@ -1,13 +1,10 @@
-﻿using Domain;
+﻿using AppServices.Data.Repositories;
+using AppServices.Framework;
 using Domain.Entities;
-using Data.Repositories;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using System.Collections.Generic;
 using System.Linq;
-using AppServices.Services;
-using AppServices.Framework;
-using Microsoft.Extensions.Configuration;
-using System.Configuration;
-using Microsoft.EntityFrameworkCore;
 
 namespace AppServices.Services
 {
@@ -34,42 +31,42 @@ namespace AppServices.Services
         {
             return new TaskResult<Job>();
         }
+
         public List<Job> GetByUser(int userId)
         {
             return _mainRepository
-                .Get(x=>x.UserId == userId && x.IsActive)
+                .Get(x => x.UserId == userId && x.IsActive)
                 .Include(x => x.Company)
                 .Include(x => x.Category)
                 .Include(x => x.HireType)
                 .Include(x => x.Location)
-                .OrderByDescending(x=>x.PublishedDate).ToList();
+                .OrderByDescending(x => x.PublishedDate).ToList();
         }
 
         public Job GetDetails(int id, bool isPreview = false)
         {
             if (isPreview)
             {
-                return _mainRepository.Get(j => j.IsActive && j.Id == id, "Company,Location")
+                return _mainRepository.Get(j => j.IsActive && j.Id == id, "Company,Location,HireType,Category")
                     .FirstOrDefault();
-
             }
             else
             {
                 return _mainRepository
-                    .Get(j => j.IsActive && j.Id == id && j.IsApproved, "Company,Location")
+                    .Get(j => j.IsActive && j.Id == id && j.IsApproved, "Company,Location,HireType,Category")
                     .FirstOrDefault();
-
             }
         }
 
         public override List<Job> GetAll()
         {
-                return _mainRepository.Get(x => x.IsActive && x.IsApproved, "Company").ToList();
+            return _mainRepository.Get(x => x.IsActive && x.IsApproved, "Company")
+                .OrderByDescending(x => x.PublishedDate).ToList();
         }
 
         public IEnumerable<Job> GetRecentJobs()
         {
-            return _mainRepository.Get(x=>x.IsActive && !x.IsHidden && x.IsApproved)
+            return _mainRepository.Get(x => x.IsActive && !x.IsHidden && x.IsApproved)
                 .Include(x => x.Company)
                 .Include(x => x.Category)
                 .Include(x => x.HireType)
@@ -91,25 +88,39 @@ namespace AppServices.Services
         public List<Job> Search(string keyword, int? categoryId, int? hireTypeId, bool? isRemote)
         {
             var query = _mainRepository.Get(x => x.IsActive && x.IsApproved, "Company,Category,Location,HireType");
+            var search = keyword?.ToLower();
 
             if (!string.IsNullOrWhiteSpace(keyword))
             {
-                query = query.Where(x => x.Title.Contains(keyword) || x.Description.Contains(keyword) || x.HowToApply.Contains(keyword));
+                query = query
+                        .Where(x => x.Title.ToLower().Contains(search)
+                               || x.Description.ToLower().Contains(search)
+                               || x.Category.Name.ToLower().Contains(search)
+                               || x.HireType.Name.ToLower().Contains(search)
+                               || x.Company.Name.ToLower().Contains(search)
+                               || x.Location.Name.ToLower().Contains(search));
             }
+
             if (categoryId.HasValue)
-            {
                 query = query.Where(x => x.CategoryId == categoryId.Value);
-            }
+
             if (hireTypeId.HasValue)
-            {
                 query = query.Where(x => x.HireTypeId == hireTypeId.Value);
 
-            }
             if (isRemote.HasValue)
-            {
                 query = query.Where(x => x.IsRemote == isRemote.Value);
-            }
-            return query.ToList();
+
+            return query.OrderByDescending(x => x.PublishedDate).ToList();
+        }
+
+        public List<Job> GetAllByCompanyId(int Id)
+        {
+            return _mainRepository.Get(x => x.IsActive && !x.IsHidden && x.IsApproved && x.CompanyId == Id)
+                .Include(x => x.Company)
+                .Include(x => x.Category)
+                .Include(x => x.HireType)
+                .Include(x => x.Location)
+                .ToList();
         }
     }
 
@@ -122,8 +133,11 @@ namespace AppServices.Services
         IEnumerable<Job> GetRecentJobs();
 
         Job GetDetails(int id, bool isPreview = false);
+
         List<Job> Search(string keyword, int? categoryId, int? hireTypeId, bool? isRemote);
+        List<Job> GetAllByCompanyId(int Id);
     }
+
     /*
     public class MockJobsService : IJobsService
     {
@@ -178,7 +192,7 @@ namespace AppServices.Services
                     LogoUrl = "https://megsoftconsulting.com/wp-content/uploads/2018/08/my_business.png"
                 },
                 Category = new Category(){Name="Categoria", Description="Descripción de esta categoria"},
-                Location = new Location(){Name="Remote"}, 
+                Location = new Location(){Name="Remote"},
                 HireType = new HireType(){Name="Trabajo completo"}
             },
             new Job

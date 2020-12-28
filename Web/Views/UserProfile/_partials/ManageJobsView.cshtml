@@ -1,11 +1,11 @@
 ﻿@model List<Domain.Entities.Job>
 
 <!-- Manage jobs -->
-<div class="tab-pane active" id="manage-jobs">
+<div class="tab-pane show active" id="manage-jobs">
 
     <div class="tr-single-box">
         <div class="tr-single-header">
-            <h4><i class="lni-file"></i> Manejar empleos</h4>
+            <h4><i class="ti-file"></i> Manejar empleos</h4>
         </div>
 
         <div class="tr-single-body">
@@ -38,8 +38,11 @@
                                                 <h4 class="mg-title">@job.Title</h4>
                                             </a>
                                         }
-                                        <span class="mg-subtitle">Web Designer</span>
-                                        <span><em>Fecha de publicación</em> @job.PublishedDate.ToString("dd/MM/yyyy")</span>
+                                        <span class="mg-subtitle">@job.Category.Name</span>
+                                        @if (job.IsApproved)
+                                        {
+                                            <span><em>Fecha de publicación</em> @job.PublishedDate.ToString("dd/MM/yyyy")</span>
+                                        }
                                     </div>
                                 </div>
 
